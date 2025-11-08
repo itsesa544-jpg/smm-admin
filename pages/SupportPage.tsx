@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 
 const statuses = ['All', 'Open', 'Answered', 'Closed'];
 
@@ -10,20 +10,20 @@ const SupportPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchTickets = async () => {
-            setLoading(true);
-            try {
-                const ticketsCollection = collection(db, 'supportTickets');
-                const ticketsSnapshot = await getDocs(ticketsCollection);
-                const ticketsList = ticketsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setTickets(ticketsList);
-            } catch (error) {
-                console.error("Error fetching tickets: ", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchTickets();
+        setLoading(true);
+        const ticketsQuery = query(collection(db, 'supportTickets'), orderBy('lastUpdate', 'desc'));
+
+        const unsubscribe = onSnapshot(ticketsQuery, (snapshot) => {
+            const ticketsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setTickets(ticketsList);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching tickets in real-time: ", error);
+            setLoading(false);
+        });
+
+        // Cleanup subscription on component unmount
+        return () => unsubscribe();
     }, []);
 
     const filteredTickets = tickets.filter(ticket =>
@@ -38,6 +38,12 @@ const SupportPage: React.FC = () => {
             default: return 'bg-gray-100 text-gray-800';
         }
     };
+    
+    const formatDate = (timestamp: Timestamp) => {
+        if (!timestamp) return 'N/A';
+        return timestamp.toDate().toLocaleString();
+    };
+
 
     return (
         <div className="bg-card p-6 rounded-lg shadow-md">
@@ -69,7 +75,7 @@ const SupportPage: React.FC = () => {
                         <tbody className="bg-white divide-y divide-gray-200">
                             {filteredTickets.map(ticket => (
                                 <tr key={ticket.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">{ticket.id}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">{ticket.id.substring(0,8)}...</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{ticket.subject}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{ticket.user}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -77,7 +83,7 @@ const SupportPage: React.FC = () => {
                                             {ticket.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{ticket.lastUpdate}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{formatDate(ticket.lastUpdate)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                         <button className="text-primary hover:underline">View</button>
                                     </td>

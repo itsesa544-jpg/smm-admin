@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash2 } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 interface Service {
     id: string;
@@ -20,40 +20,43 @@ const ServicesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-      const fetchServices = async () => {
-          setLoading(true);
-          try {
-              const servicesCollection = collection(db, 'services');
-              const servicesSnapshot = await getDocs(servicesCollection);
-              const servicesList = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
-              
-              // Group services by category
-              const groupedServices = servicesList.reduce((acc, service) => {
-                  const category = service.category;
-                  if (!acc[category]) {
-                      acc[category] = [];
-                  }
-                  acc[category].push(service);
-                  return acc;
-              }, {} as Record<string, Service[]>);
+    setLoading(true);
+    const servicesCollectionRef = collection(db, 'services');
+    // Order by category then by name for consistent grouping and listing
+    const q = query(servicesCollectionRef, orderBy('category'), orderBy('name'));
 
-              const formattedData = Object.keys(groupedServices).map(category => ({
-                  category,
-                  services: groupedServices[category]
-              }));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const servicesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        
+        // Group services by category
+        const groupedServices = servicesList.reduce((acc, service) => {
+            const category = service.category;
+            if (!acc[category]) {
+                acc[category] = [];
+            }
+            acc[category].push(service);
+            return acc;
+        }, {} as Record<string, Service[]>);
 
-              setServicesData(formattedData);
-              if (formattedData.length > 0) {
-                  setOpenCategory(formattedData[0].category);
-              }
-          } catch (error) {
-              console.error("Error fetching services: ", error);
-          } finally {
-              setLoading(false);
-          }
-      };
-      fetchServices();
-  }, []);
+        const formattedData = Object.keys(groupedServices).map(category => ({
+            category,
+            services: groupedServices[category]
+        }));
+
+        setServicesData(formattedData);
+        // Set the first category as open on initial load, but don't change it on subsequent updates
+        if (loading && formattedData.length > 0) {
+            setOpenCategory(formattedData[0].category);
+        }
+        setLoading(false);
+    }, (error) => {
+        console.error("Error fetching services in real-time: ", error);
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
+}, []);
+
 
   const toggleCategory = (category: string) => {
     setOpenCategory(openCategory === category ? null : category);

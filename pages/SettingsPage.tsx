@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, onSnapshot } from 'firebase/firestore';
 
 const SettingsPage: React.FC = () => {
     // State for each settings card
@@ -8,35 +8,44 @@ const SettingsPage: React.FC = () => {
     const [apiSettings, setApiSettings] = useState({ providerA: '', providerB: '' });
     const [firebaseConfig, setFirebaseConfig] = useState({ apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' });
     const [announcement, setAnnouncement] = useState('');
+    const [loading, setLoading] = useState(true);
 
-    // Fetch all settings on component mount
+    // Fetch all settings in real-time on component mount
     useEffect(() => {
-        const fetchSettings = async () => {
-            try {
-                const generalRef = doc(db, "settings", "general");
-                const apiRef = doc(db, "settings", "apiProviders");
-                const firebaseRef = doc(db, "settings", "firebaseConfig");
-
-                const [generalSnap, apiSnap, firebaseSnap] = await Promise.all([
-                    getDoc(generalRef),
-                    getDoc(apiRef),
-                    getDoc(firebaseRef)
-                ]);
-
-                if (generalSnap.exists()) setGeneralSettings(generalSnap.data());
-                if (apiSnap.exists()) setApiSettings(apiSnap.data());
-                if (firebaseSnap.exists()) setFirebaseConfig(firebaseSnap.data());
-            } catch (error) {
-                console.error("Error fetching settings:", error);
-            }
+        setLoading(true);
+        const settingsRefs = {
+            general: doc(db, "settings", "general"),
+            apiProviders: doc(db, "settings", "apiProviders"),
+            firebaseConfig: doc(db, "settings", "firebaseConfig"),
         };
-        fetchSettings();
+
+        const unsubGeneral = onSnapshot(settingsRefs.general, (doc) => {
+            if (doc.exists()) setGeneralSettings(doc.data());
+        }, (error) => console.error("Error fetching general settings:", error));
+        
+        const unsubApi = onSnapshot(settingsRefs.apiProviders, (doc) => {
+            if (doc.exists()) setApiSettings(doc.data());
+        }, (error) => console.error("Error fetching API settings:", error));
+
+        const unsubFirebase = onSnapshot(settingsRefs.firebaseConfig, (doc) => {
+            if (doc.exists()) setFirebaseConfig(doc.data());
+            setLoading(false); // Assume this is the last one to load
+        }, (error) => {
+            console.error("Error fetching Firebase config:", error);
+            setLoading(false);
+        });
+        
+        return () => {
+            unsubGeneral();
+            unsubApi();
+            unsubFirebase();
+        };
     }, []);
     
     // Generic handler to save a settings document
-    const handleSave = async (collection: string, docName: string, data: any, successMessage: string) => {
+    const handleSave = async (collectionName: string, docName: string, data: any, successMessage: string) => {
         try {
-            await setDoc(doc(db, collection, docName), data);
+            await setDoc(doc(db, collectionName, docName), data);
             alert(successMessage);
         } catch (error) {
             console.error(`Error saving ${docName}:`, error);
@@ -81,6 +90,10 @@ const SettingsPage: React.FC = () => {
     const handleGeneralChange = createChangeHandler(setGeneralSettings);
     const handleApiChange = createChangeHandler(setApiSettings);
     const handleFirebaseChange = createChangeHandler(setFirebaseConfig);
+
+    if (loading) {
+        return <p>Loading settings...</p>;
+    }
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">

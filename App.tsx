@@ -10,9 +10,11 @@ import FundsPage from './pages/FundsPage';
 import SupportPage from './pages/SupportPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
-import { Menu, X } from 'lucide-react';
+import AIAssistantPage from './pages/AIAssistantPage';
+import ChildPanelsPage from './pages/ChildPanelsPage';
+import { Menu } from 'lucide-react';
 
-type Page = 'dashboard' | 'users' | 'orders' | 'services' | 'funds' | 'support' | 'settings';
+type Page = 'dashboard' | 'users' | 'orders' | 'services' | 'funds' | 'support' | 'settings' | 'ai-assistant' | 'child-panels';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -52,13 +54,24 @@ const App: React.FC = () => {
         return <SupportPage />;
       case 'settings':
         return <SettingsPage />;
+      case 'ai-assistant':
+        return <AIAssistantPage />;
+      case 'child-panels':
+        return <ChildPanelsPage />;
       default:
         return <DashboardPage />;
     }
   };
   
   const PageTitle: React.FC<{ page: Page }> = ({ page }) => {
-    const title = page.charAt(0).toUpperCase() + page.slice(1);
+    let title = '';
+    if (page === 'ai-assistant') {
+      title = 'AI Assistant';
+    } else if (page === 'child-panels') {
+      title = 'Child Panels';
+    } else {
+      title = page.charAt(0).toUpperCase() + page.slice(1);
+    }
     return <h1 className="text-2xl md:text-3xl font-bold text-text-primary">{title}</h1>;
   };
 

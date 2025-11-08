@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MoreVertical, Edit, Trash2, DollarSign, Ban, ShieldCheck, UserCheck } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const UsersPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -10,20 +10,22 @@ const UsersPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchUsers = async () => {
-            setLoading(true);
-            try {
-                const usersCollection = collection(db, 'users');
-                const usersSnapshot = await getDocs(usersCollection);
-                const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setUsers(usersList);
-            } catch (error) {
-                console.error("Error fetching users: ", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchUsers();
+        setLoading(true);
+        const usersCollectionRef = collection(db, 'users');
+        // Query to order users by creation time, newest first.
+        const q = query(usersCollectionRef, orderBy('createdAt', 'desc'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setUsers(usersList);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching users in real-time:", error);
+            setLoading(false);
+        });
+
+        // Cleanup subscription on component unmount
+        return () => unsubscribe();
     }, []);
 
     const handleStatusChange = async (userId: string, newStatus: string) => {

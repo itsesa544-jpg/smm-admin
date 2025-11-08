@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, ShoppingCart, List, DollarSign, MessageSquare, Settings, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, List, DollarSign, MessageSquare, Settings, X, LogOut, Bot, GitBranch } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -17,6 +17,8 @@ const navItems = [
   { id: 'services', label: 'Service Management', icon: List },
   { id: 'funds', label: 'Fund Management', icon: DollarSign },
   { id: 'support', label: 'Support System', icon: MessageSquare },
+  { id: 'child-panels', label: 'Child Panels', icon: GitBranch },
+  { id: 'ai-assistant', label: 'AI Assistant', icon: Bot },
   { id: 'settings', label: 'Site Settings', icon: Settings },
 ];
 

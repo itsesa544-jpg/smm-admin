@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc, increment, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, increment, writeBatch, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 
 const FundsPage: React.FC = () => {
     const [fundRequests, setFundRequests] = useState<any[]>([]);
@@ -12,33 +12,32 @@ const FundsPage: React.FC = () => {
     });
 
     useEffect(() => {
-        const fetchFundRequests = async () => {
-            setLoadingRequests(true);
-            try {
-                const requestsCollection = collection(db, 'fundRequests');
-                const requestsSnapshot = await getDocs(requestsCollection);
-                setFundRequests(requestsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            } catch (error) {
-                console.error("Error fetching fund requests: ", error);
-            } finally {
-                setLoadingRequests(false);
-            }
-        };
+        // Real-time listener for fund requests, ordered by newest first
+        setLoadingRequests(true);
+        const requestsQuery = query(collection(db, 'fundRequests'), orderBy('createdAt', 'desc'));
+        const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
+            setFundRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            setLoadingRequests(false);
+        }, (error) => {
+            console.error("Error fetching fund requests in real-time: ", error);
+            setLoadingRequests(false);
+        });
 
-        const fetchPaymentMethods = async () => {
-            try {
-                const docRef = doc(db, 'settings', 'paymentMethods');
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    setPaymentMethods(docSnap.data());
-                }
-            } catch (error) {
-                console.error("Error fetching payment methods: ", error);
+        // Real-time listener for payment methods
+        const methodsDocRef = doc(db, 'settings', 'paymentMethods');
+        const unsubscribeMethods = onSnapshot(methodsDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setPaymentMethods(docSnap.data());
             }
-        };
+        }, (error) => {
+            console.error("Error fetching payment methods in real-time: ", error);
+        });
 
-        fetchFundRequests();
-        fetchPaymentMethods();
+        // Cleanup subscriptions on component unmount
+        return () => {
+            unsubscribeRequests();
+            unsubscribeMethods();
+        };
     }, []);
 
     const handleRequest = async (request: any, action: 'approve' | 'reject') => {
@@ -48,19 +47,16 @@ const FundsPage: React.FC = () => {
         const requestDocRef = doc(db, 'fundRequests', request.id);
 
         if (action === 'approve') {
-            // Find user by email to update balance. In a real app, you'd use user ID.
             const userDocRef = doc(db, 'users', request.userId); 
             batch.update(userDocRef, {
                 balance: increment(request.amount)
             });
         }
         
-        // In both cases, delete the request
         batch.delete(requestDocRef);
 
         try {
             await batch.commit();
-            setFundRequests(fundRequests.filter(req => req.id !== request.id));
             alert(`Request ${action}d successfully.`);
         } catch (error) {
             console.error(`Error processing request: `, error);
@@ -84,6 +80,11 @@ const FundsPage: React.FC = () => {
             alert('Failed to save payment methods.');
         }
     }
+    
+    const formatDate = (timestamp: Timestamp) => {
+      if (!timestamp) return 'N/A';
+      return timestamp.toDate().toLocaleString();
+    };
 
   return (
     <div className="space-y-8">
@@ -95,6 +96,7 @@ const FundsPage: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                 <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">User</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Method</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Amount</th>
@@ -103,8 +105,9 @@ const FundsPage: React.FC = () => {
                 </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                {fundRequests.map(req => (
+                {fundRequests.length > 0 ? fundRequests.map(req => (
                     <tr key={req.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{formatDate(req.createdAt)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">{req.userEmail}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{req.method}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">${(req.amount || 0).toFixed(2)}</td>
@@ -114,7 +117,11 @@ const FundsPage: React.FC = () => {
                         <button onClick={() => handleRequest(req, 'reject')} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">Reject</button>
                     </td>
                     </tr>
-                ))}
+                )) : (
+                    <tr>
+                        <td colSpan={6} className="text-center py-4 text-gray-500">No pending fund requests.</td>
+                    </tr>
+                )}
                 </tbody>
             </table>
           )}
