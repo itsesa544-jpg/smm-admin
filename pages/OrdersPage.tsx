@@ -1,27 +1,38 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
-
-const ordersData = [
-  { id: 1, user: 'John Doe', service: 'Instagram Followers', link: 'instagram.com/user', quantity: 1000, charge: 5.00, status: 'Completed' },
-  { id: 2, user: 'Jane Smith', service: 'TikTok Likes', link: 'tiktok.com/video/123', quantity: 500, charge: 2.50, status: 'Processing' },
-  { id: 3, user: 'Robert Brown', service: 'YouTube Views', link: 'youtube.com/watch?v=abc', quantity: 10000, charge: 50.00, status: 'Pending' },
-  { id: 4, user: 'Emily White', service: 'Facebook Page Likes', link: 'facebook.com/page', quantity: 2000, charge: 20.00, status: 'In-progress' },
-  { id: 5, user: 'Michael Green', service: 'Instagram Followers', link: 'instagram.com/user2', quantity: 500, charge: 2.50, status: 'Partial' },
-  { id: 6, user: 'John Doe', service: 'Twitter Retweets', link: 'twitter.com/tweet/456', quantity: 100, charge: 1.00, status: 'Canceled' },
-];
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 const statuses = ['All', 'Pending', 'Processing', 'In-progress', 'Completed', 'Partial', 'Canceled'];
 
 const OrdersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredOrders = ordersData.filter(order =>
+  useEffect(() => {
+    const fetchOrders = async () => {
+        setLoading(true);
+        try {
+            const ordersCollection = collection(db, 'orders');
+            const ordersSnapshot = await getDocs(ordersCollection);
+            const ordersList = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setOrders(ordersList);
+        } catch (error) {
+            console.error("Error fetching orders: ", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    fetchOrders();
+  }, []);
+
+  const filteredOrders = orders.filter(order =>
     (statusFilter === 'All' || order.status === statusFilter) &&
-    (order.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     order.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     order.link.toLowerCase().includes(searchTerm.toLowerCase()))
+    (order.user?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     order.service?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     order.link?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getStatusClass = (status: string) => {
@@ -64,36 +75,38 @@ const OrdersPage: React.FC = () => {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Order ID</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">User</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Service</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Link</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Quantity</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Charge</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredOrders.map((order) => (
-              <tr key={order.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{order.id}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{order.user}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{order.service}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary truncate max-w-xs">{order.link}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{order.quantity}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">${order.charge.toFixed(2)}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(order.status)}`}>
-                        {order.status}
-                    </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {loading ? <p>Loading orders...</p> : (
+            <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+                <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Order ID</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">User</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Service</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Link</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Quantity</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Charge</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Status</th>
+                </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+                {filteredOrders.map((order) => (
+                <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{order.id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{order.user}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{order.service}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary truncate max-w-xs">{order.link}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{order.quantity}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">${(order.charge || 0).toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(order.status)}`}>
+                            {order.status}
+                        </span>
+                    </td>
+                </tr>
+                ))}
+            </tbody>
+            </table>
+        )}
       </div>
     </div>
   );

@@ -1,32 +1,59 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Plus, Edit, Trash2 } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
-const servicesData = [
-  {
-    category: 'Instagram',
-    services: [
-      { id: 101, name: 'Instagram Followers [Real]', rate: 5.00, min: 100, max: 10000, apiProvider: 'Provider A', apiServiceId: 'A-12' },
-      { id: 102, name: 'Instagram Likes [HQ]', rate: 1.50, min: 50, max: 5000, apiProvider: 'Provider B', apiServiceId: 'B-05' },
-    ]
-  },
-  {
-    category: 'TikTok',
-    services: [
-      { id: 201, name: 'TikTok Views', rate: 0.10, min: 1000, max: 1000000, apiProvider: 'Provider A', apiServiceId: 'A-34' },
-      { id: 202, name: 'TikTok Likes', rate: 2.00, min: 100, max: 10000, apiProvider: 'Provider C', apiServiceId: 'C-77' },
-    ]
-  },
-  {
-    category: 'YouTube',
-    services: [
-      { id: 301, name: 'YouTube Subscribers', rate: 25.00, min: 100, max: 1000, apiProvider: 'Provider B', apiServiceId: 'B-19' },
-    ]
-  }
-];
+interface Service {
+    id: string;
+    name: string;
+    rate: number;
+    min: number;
+    max: number;
+    apiProvider: string;
+    apiServiceId: string;
+    category: string;
+}
 
 const ServicesPage: React.FC = () => {
-  const [openCategory, setOpenCategory] = useState<string | null>(servicesData[0]?.category || null);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [servicesData, setServicesData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+      const fetchServices = async () => {
+          setLoading(true);
+          try {
+              const servicesCollection = collection(db, 'services');
+              const servicesSnapshot = await getDocs(servicesCollection);
+              const servicesList = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+              
+              // Group services by category
+              const groupedServices = servicesList.reduce((acc, service) => {
+                  const category = service.category;
+                  if (!acc[category]) {
+                      acc[category] = [];
+                  }
+                  acc[category].push(service);
+                  return acc;
+              }, {} as Record<string, Service[]>);
+
+              const formattedData = Object.keys(groupedServices).map(category => ({
+                  category,
+                  services: groupedServices[category]
+              }));
+
+              setServicesData(formattedData);
+              if (formattedData.length > 0) {
+                  setOpenCategory(formattedData[0].category);
+              }
+          } catch (error) {
+              console.error("Error fetching services: ", error);
+          } finally {
+              setLoading(false);
+          }
+      };
+      fetchServices();
+  }, []);
 
   const toggleCategory = (category: string) => {
     setOpenCategory(openCategory === category ? null : category);
@@ -45,7 +72,7 @@ const ServicesPage: React.FC = () => {
             </button>
         </div>
       </div>
-      {servicesData.map(({ category, services }) => (
+      {loading ? <p>Loading services...</p> : servicesData.map(({ category, services }) => (
         <div key={category} className="bg-card rounded-lg shadow-md overflow-hidden">
           <button
             onClick={() => toggleCategory(category)}
@@ -68,9 +95,9 @@ const ServicesPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {services.map(service => (
+                  {services.map((service: Service) => (
                     <tr key={service.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">{service.id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">{service.id.substring(0, 6)}...</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{service.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">${service.rate.toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{service.min} / {service.max}</td>

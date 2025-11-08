@@ -1,19 +1,32 @@
-
-import React, { useState } from 'react';
-
-const ticketsData = [
-  { id: 1, subject: 'Order #1234 not starting', user: 'john.doe@example.com', status: 'Open', lastUpdate: '2h ago' },
-  { id: 2, subject: 'Payment issue with Bkash', user: 'jane.smith@example.com', status: 'Open', lastUpdate: '1d ago' },
-  { id: 3, subject: 'API question', user: 'api.user@example.com', status: 'Closed', lastUpdate: '3d ago' },
-  { id: 4, subject: 'Refill request for order #1190', user: 'emily.white@example.com', status: 'Answered', lastUpdate: '5h ago' },
-];
+import React, { useState, useEffect } from 'react';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 const statuses = ['All', 'Open', 'Answered', 'Closed'];
 
 const SupportPage: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState('All');
+    const [tickets, setTickets] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const filteredTickets = ticketsData.filter(ticket =>
+    useEffect(() => {
+        const fetchTickets = async () => {
+            setLoading(true);
+            try {
+                const ticketsCollection = collection(db, 'supportTickets');
+                const ticketsSnapshot = await getDocs(ticketsCollection);
+                const ticketsList = ticketsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setTickets(ticketsList);
+            } catch (error) {
+                console.error("Error fetching tickets: ", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchTickets();
+    }, []);
+
+    const filteredTickets = tickets.filter(ticket =>
         statusFilter === 'All' || ticket.status === statusFilter
     );
 
@@ -41,36 +54,38 @@ const SupportPage: React.FC = () => {
                 </select>
             </div>
             <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Ticket ID</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Subject</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">User</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Last Update</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredTickets.map(ticket => (
-                            <tr key={ticket.id}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">{ticket.id}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{ticket.subject}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{ticket.user}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(ticket.status)}`}>
-                                        {ticket.status}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{ticket.lastUpdate}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                    <button className="text-primary hover:underline">View</button>
-                                </td>
+                {loading ? <p>Loading tickets...</p> : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Ticket ID</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Subject</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">User</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Last Update</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-text-secondary uppercase">Action</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {filteredTickets.map(ticket => (
+                                <tr key={ticket.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary">{ticket.id}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary">{ticket.subject}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{ticket.user}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(ticket.status)}`}>
+                                            {ticket.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{ticket.lastUpdate}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                        <button className="text-primary hover:underline">View</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
         </div>
     );

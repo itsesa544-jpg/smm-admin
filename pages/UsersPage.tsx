@@ -1,22 +1,45 @@
-
-import React, { useState } from 'react';
-import { Search, MoreVertical, Edit, Trash2, DollarSign, Ban } from 'lucide-react';
-
-const usersData = [
-  { id: 1, name: 'John Doe', email: 'john.doe@example.com', balance: 150.75, status: 'Active', orders: 12 },
-  { id: 2, name: 'Jane Smith', email: 'jane.smith@example.com', balance: 25.00, status: 'Active', orders: 5 },
-  { id: 3, name: 'Robert Brown', email: 'robert.brown@example.com', balance: 0, status: 'Inactive', orders: 0 },
-  { id: 4, name: 'Emily White', email: 'emily.white@example.com', balance: 500.20, status: 'Active', orders: 35 },
-  { id: 5, name: 'Michael Green', email: 'michael.green@example.com', balance: 10.50, status: 'Banned', orders: 2 },
-];
+import React, { useState, useEffect } from 'react';
+import { Search, MoreVertical, Edit, Trash2, DollarSign, Ban, ShieldCheck, UserCheck } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 const UsersPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
+    const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+    const [users, setUsers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const filteredUsers = usersData.filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    useEffect(() => {
+        const fetchUsers = async () => {
+            setLoading(true);
+            try {
+                const usersCollection = collection(db, 'users');
+                const usersSnapshot = await getDocs(usersCollection);
+                const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setUsers(usersList);
+            } catch (error) {
+                console.error("Error fetching users: ", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchUsers();
+    }, []);
+
+    const handleStatusChange = async (userId: string, newStatus: string) => {
+        try {
+            const userDoc = doc(db, 'users', userId);
+            await updateDoc(userDoc, { status: newStatus });
+            setUsers(users.map(user => user.id === userId ? { ...user, status: newStatus } : user));
+        } catch (error) {
+            console.error("Error updating user status: ", error);
+        }
+        setActiveDropdown(null);
+    };
+
+    const filteredUsers = users.filter(user =>
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const getStatusClass = (status: string) => {
@@ -45,6 +68,7 @@ const UsersPage: React.FC = () => {
             </div>
 
             <div className="overflow-x-auto">
+                 {loading ? <p>Loading users...</p> : (
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -71,8 +95,8 @@ const UsersPage: React.FC = () => {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary font-medium">${user.balance.toFixed(2)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{user.orders}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-primary font-medium">${(user.balance || 0).toFixed(2)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-text-secondary">{user.orders || 0}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(user.status)}`}>
                                         {user.status}
@@ -87,7 +111,8 @@ const UsersPage: React.FC = () => {
                                             <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
                                                 <a href="#" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem"><Edit size={16} className="mr-2" /> View/Edit Profile</a>
                                                 <a href="#" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem"><DollarSign size={16} className="mr-2" /> Add/Subtract Balance</a>
-                                                <a href="#" className="flex items-center px-4 py-2 text-sm text-red-700 hover:bg-gray-100" role="menuitem"><Ban size={16} className="mr-2" /> Ban User</a>
+                                                {user.status !== 'Active' && <a href="#" onClick={() => handleStatusChange(user.id, 'Active')} className="flex items-center px-4 py-2 text-sm text-green-700 hover:bg-gray-100" role="menuitem"><UserCheck size={16} className="mr-2" /> Set Active</a>}
+                                                {user.status !== 'Banned' && <a href="#" onClick={() => handleStatusChange(user.id, 'Banned')} className="flex items-center px-4 py-2 text-sm text-red-700 hover:bg-gray-100" role="menuitem"><Ban size={16} className="mr-2" /> Ban User</a>}
                                             </div>
                                         </div>
                                     )}
@@ -96,6 +121,7 @@ const UsersPage: React.FC = () => {
                         ))}
                     </tbody>
                 </table>
+                 )}
             </div>
         </div>
     );
