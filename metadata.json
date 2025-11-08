@@ -1,0 +1,5 @@
+{
+  "name": "SMM Panel Admin Dashboard",
+  "description": "A comprehensive admin dashboard to manage an SMM panel, including user, order, service, and fund management. This powerful interface allows administrators to control every aspect of the SMM service platform from a centralized location.",
+  "requestFramePermissions": []
+}
